@@ -1,67 +1,121 @@
 package com.fahim.geminiApiComposeStarter.data
+
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
+
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.content
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.util.Log
-import com.google.ai.client.generativeai.GenerativeModel
-import kotlinx.coroutines.CancellationException
 
-private const val TAG = "GeminiRepository"
-private const val DEFAULT_MODEL = "gemini-3.6-flash"
+
+private const val DEFAULT_MODEL =
+    "gemini-3.6-flash"
 
 
 class GeminiRepositoryImpl(
+    private val context: Context,
     private val secureApiKeyStore: SecureApiKeyStore
 ) : GeminiRepository {
 
+
     override suspend fun initialize() {
+
         secureApiKeyStore.initializeEncryptedKey()
     }
 
+
     override suspend fun sendMessage(
-        prompt: String
-    ): String = withContext(Dispatchers.IO) {
+        prompt: String,
+        imageUri: Uri?
+    ): String =
+        withContext(Dispatchers.IO) {
 
-        println("GEMINI: sendMessage() started")
+            /*
+             * Retrieve the decrypted API key.
+             */
+            val apiKey =
+                secureApiKeyStore.getDecryptedApiKey()
 
-        println("GEMINI: attempting to decrypt API key")
 
-        println("GEMINI: calling getDecryptedApiKey()")
+            require(apiKey.isNotBlank()) {
+                "API key is empty."
+            }
 
-        val apiKey =
-            secureApiKeyStore.getDecryptedApiKey()
 
-        println("GEMINI: getDecryptedApiKey() returned")
+            /*
+             * Create the Gemini model.
+             */
+            val model =
+                GenerativeModel(
+                    modelName = DEFAULT_MODEL,
+                    apiKey = apiKey
+                )
 
-        println(
-            "GEMINI: API key loaded = ${apiKey.isNotBlank()}"
-        )
 
-        println(
-            "GEMINI: API key loaded = ${apiKey.isNotBlank()}"
-        )
+            /*
+             * TEXT ONLY
+             *
+             * Keep the existing working path unchanged.
+             */
+            if (imageUri == null) {
 
-        require(apiKey.isNotBlank()) {
-            "API key is empty."
+                val response =
+                    model.generateContent(
+                        prompt
+                    )
+
+                return@withContext(
+                        response.text
+                            ?: "Gemini returned no text."
+                        )
+            }
+
+
+            /*
+             * IMAGE + TEXT
+             *
+             * Read the selected image from the
+             * Android content resolver.
+             */
+            val bitmap =
+                context.contentResolver
+                    .openInputStream(imageUri)
+                    ?.use { inputStream ->
+
+                        BitmapFactory.decodeStream(
+                            inputStream
+                        )
+                    }
+                    ?: throw IllegalStateException(
+                        "Unable to read the selected image."
+                    )
+
+
+            /*
+             * Construct multimodal content.
+             */
+            val inputContent =
+                content {
+
+                    image(bitmap)
+
+                    text(prompt)
+                }
+
+
+            /*
+             * Send image + prompt to Gemini.
+             */
+            val response =
+                model.generateContent(
+                    inputContent
+                )
+
+
+            response.text
+                ?: "Gemini returned no text."
         }
-
-        println("GEMINI: creating model")
-
-        val model =
-            GenerativeModel(
-                modelName = "gemini-3.6-flash",
-                apiKey = apiKey
-            )
-
-        println("GEMINI: model created")
-
-        println("GEMINI: calling generateContent()")
-
-        val response =
-            model.generateContent(prompt)
-
-        println("GEMINI: generateContent() returned")
-
-        response.text
-            ?: "Gemini returned no text."
-    }
 }

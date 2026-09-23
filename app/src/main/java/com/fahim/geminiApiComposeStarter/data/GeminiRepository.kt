@@ -1,11 +1,14 @@
 package com.fahim.geminiApiComposeStarter.data
 
-/** Abstraction over the Gemini text generation call so the ViewModel can be unit tested. */
+import android.net.Uri
+
+
 interface GeminiRepository {
 
     suspend fun initialize()
 
     suspend fun sendMessage(
-        prompt: String
+        prompt: String,
+        imageUri: Uri? = null
     ): String
 }

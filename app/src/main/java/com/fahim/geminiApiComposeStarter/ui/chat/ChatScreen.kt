@@ -1,4 +1,4 @@
-package com.fahim.geminiApiComposeStarter.chat
+package com.fahim.geminiApiComposeStarter.ui.chat
 
 import android.Manifest
 import android.content.Intent
@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+
 import androidx.compose.foundation.lazy.rememberLazyListState
 
 import androidx.compose.material3.AlertDialog
@@ -33,27 +34,24 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 import androidx.core.content.ContextCompat
@@ -66,48 +64,57 @@ fun ChatScreen(
     viewModel: ChatViewModel
 ) {
 
-    val uiState by
+    val state by
     viewModel.uiState.collectAsStateWithLifecycle()
 
-    /*
-     * Local light/dark mode state.
-     *
-     * false = Light Mode
-     * true  = Dark Mode
-     */
-    var isDarkMode by rememberSaveable {
-        mutableStateOf(false)
-    }
 
-    val colorScheme =
-        if (isDarkMode) {
-            darkColorScheme()
-        } else {
-            lightColorScheme()
-        }
-
-    /*
-     * This MaterialTheme controls the appearance of
-     * the ChatScreen itself.
-     */
     MaterialTheme(
-        colorScheme = colorScheme
+
+        colorScheme =
+            if (state.isDarkMode) {
+
+                androidx.compose.material3.darkColorScheme()
+
+            } else {
+
+                androidx.compose.material3.lightColorScheme()
+            }
+
     ) {
 
         ChatScreenContent(
-            state = uiState,
-            isDarkMode = isDarkMode,
-            onToggleTheme = {
-                isDarkMode = !isDarkMode
-            },
-            onInputChange = viewModel::updateInput,
-            onSend = viewModel::sendMessage,
-            onClearError = viewModel::clearError,
-            onOpenPreferences = viewModel::openPreferences,
-            onClosePreferences = viewModel::closePreferences,
-            onNameChange = viewModel::updateNameDraft,
-            onSavePreferences = viewModel::savePreferences,
-            onClearChat = viewModel::clearChat
+
+            state = state,
+
+            onPromptChange =
+                viewModel::onPromptChange,
+
+            onSend =
+                viewModel::onSend,
+
+            onImageSelected =
+                viewModel::onImageSelected,
+
+            onClearImage =
+                viewModel::clearSelectedImage,
+
+            onToggleDarkMode =
+                viewModel::toggleDarkMode,
+
+            onOpenPreferences =
+                viewModel::openPreferences,
+
+            onClosePreferences =
+                viewModel::closePreferences,
+
+            onNameChange =
+                viewModel::updateNameDraft,
+
+            onSavePreferences =
+                viewModel::savePreferences,
+
+            onClearError =
+                viewModel::clearError
         )
     }
 }
@@ -117,57 +124,93 @@ fun ChatScreen(
 @Composable
 private fun ChatScreenContent(
     state: ChatUiState,
-    isDarkMode: Boolean,
-    onToggleTheme: () -> Unit,
-    onInputChange: (String) -> Unit,
+
+    onPromptChange: (String) -> Unit,
+
     onSend: () -> Unit,
-    onClearError: () -> Unit,
+
+    onImageSelected: (String) -> Unit,
+
+    onClearImage: () -> Unit,
+
+    onToggleDarkMode: () -> Unit,
+
     onOpenPreferences: () -> Unit,
+
     onClosePreferences: () -> Unit,
+
     onNameChange: (String) -> Unit,
+
     onSavePreferences: () -> Unit,
-    onClearChat: () -> Unit
+
+    onClearError: () -> Unit
 ) {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
+
 
     val listState =
         rememberLazyListState()
 
 
     /*
-     * Speech recognizer configuration.
+     * Android image picker.
      */
-    val speechIntent = remember {
+    val imagePicker =
+        rememberLauncherForActivityResult(
 
-        Intent(
-            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-        ).apply {
+            contract =
+                ActivityResultContracts.GetContent()
 
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
+        ) { uri ->
 
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                "en-US"
-            )
+            uri?.let {
 
-            putExtra(
-                RecognizerIntent.EXTRA_PROMPT,
-                "Speak your message"
-            )
+                onImageSelected(
+                    it.toString()
+                )
+            }
         }
-    }
 
 
     /*
-     * Receives the result returned by the speech recognizer.
+     * Speech-recognition intent.
+     */
+    val speechIntent =
+        remember {
+
+            Intent(
+                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+            ).apply {
+
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE,
+                    "en-US"
+                )
+
+                putExtra(
+                    RecognizerIntent.EXTRA_PROMPT,
+                    "Speak your message"
+                )
+            }
+        }
+
+
+    /*
+     * Speech result launcher.
      */
     val voiceLauncher =
         rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
+
+            contract =
+                ActivityResultContracts.StartActivityForResult()
+
         ) { result ->
 
             val recognizedText =
@@ -177,9 +220,12 @@ private fun ChatScreenContent(
                     )
                     ?.firstOrNull()
 
-            if (!recognizedText.isNullOrBlank()) {
 
-                onInputChange(
+            if (
+                !recognizedText.isNullOrBlank()
+            ) {
+
+                onPromptChange(
                     recognizedText
                 )
             }
@@ -187,11 +233,14 @@ private fun ChatScreenContent(
 
 
     /*
-     * Requests microphone permission when required.
+     * Microphone permission launcher.
      */
     val permissionLauncher =
         rememberLauncherForActivityResult(
-            ActivityResultContracts.RequestPermission()
+
+            contract =
+                ActivityResultContracts.RequestPermission()
+
         ) { granted ->
 
             if (granted) {
@@ -204,18 +253,21 @@ private fun ChatScreenContent(
 
 
     /*
-     * Starts voice dictation.
+     * Start voice input.
      */
     fun startVoiceInput() {
 
-        val permissionStatus =
+        val permission =
             ContextCompat.checkSelfPermission(
+
                 context,
+
                 Manifest.permission.RECORD_AUDIO
             )
 
+
         if (
-            permissionStatus ==
+            permission ==
             PackageManager.PERMISSION_GRANTED
         ) {
 
@@ -236,23 +288,46 @@ private fun ChatScreenContent(
      * Automatically scroll to the newest message.
      */
     LaunchedEffect(
+
         state.messages.size,
+
         state.isLoading,
+
         state.errorMessage
     ) {
 
-        val additionalItems =
-            (if (state.isLoading) 1 else 0) +
-                    (if (state.errorMessage != null) 1 else 0)
-
-        val totalItems =
+        val itemCount =
             state.messages.size +
-                    additionalItems
 
-        if (totalItems > 0) {
+                    (if (
+                        state.isLoading
+                    ) {
+                        1
+                    } else {
+                        0
+                    }) +
+
+                    (if (
+                        state.promptError != null
+                    ) {
+                        1
+                    } else {
+                        0
+                    }) +
+
+                    (if (
+                        state.errorMessage != null
+                    ) {
+                        1
+                    } else {
+                        0
+                    })
+
+
+        if (itemCount > 0) {
 
             listState.animateScrollToItem(
-                totalItems - 1
+                itemCount - 1
             )
         }
     }
@@ -265,39 +340,70 @@ private fun ChatScreenContent(
             TopAppBar(
 
                 title = {
-                    Text(
-                        text = "Gemini Chat"
-                    )
+
+                    Column {
+
+                        Text(
+                            text = "Gemini Chat"
+                        )
+
+
+                        if (
+                            state.userName.isNotBlank()
+                        ) {
+
+                            Text(
+
+                                text =
+                                    "Hi, ${state.userName}",
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .labelMedium
+                            )
+                        }
+                    }
                 },
+
 
                 actions = {
 
                     /*
-                     * Light/Dark mode toggle.
+                     * Theme toggle.
                      */
                     IconButton(
-                        onClick = onToggleTheme
+
+                        onClick =
+                            onToggleDarkMode
                     ) {
 
                         Text(
+
                             text =
-                                if (isDarkMode) {
-                                    "☀"
+                                if (
+                                    state.isDarkMode
+                                ) {
+                                    "☀️"
                                 } else {
-                                    "☾"
+                                    "🌙"
                                 }
                         )
                     }
 
+
                     /*
-                     * Preferences button.
+                     * Preferences.
                      */
                     TextButton(
-                        onClick = onOpenPreferences
+
+                        onClick =
+                            onOpenPreferences
                     ) {
 
                         Text(
-                            text = "Preferences"
+                            text =
+                                "Preferences"
                         )
                     }
                 }
@@ -308,72 +414,65 @@ private fun ChatScreenContent(
 
         Column(
 
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .navigationBarsPadding()
+                    .padding(
+                        horizontal = 12.dp
+                    )
         ) {
 
 
             /*
-             * Personalized greeting.
-             */
-            if (state.userName.isNotBlank()) {
-
-                Text(
-                    text = "Hi, ${state.userName}",
-
-                    modifier =
-                        Modifier.padding(
-                            start = 4.dp,
-                            top = 8.dp,
-                            bottom = 8.dp
-                        ),
-
-                    style =
-                        MaterialTheme
-                            .typography
-                            .titleMedium
-                )
-            }
-
-
-            /*
-             * Chat history.
+             * ACTUAL CHAT HISTORY.
+             *
+             * Notice that this uses state.messages,
+             * NOT state.inputText.
+             *
+             * Therefore typing cannot alter old bubbles.
              */
             LazyColumn(
 
-                state = listState,
+                state =
+                    listState,
 
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
 
                 verticalArrangement =
-                    Arrangement.spacedBy(8.dp)
+                    Arrangement.spacedBy(10.dp)
             ) {
 
                 items(
 
-                    items = state.messages,
+                    items =
+                        state.messages,
 
-                    key = { message ->
+                    key = {
+                            message ->
                         message.id
                     }
 
                 ) { message ->
 
                     ChatBubble(
-                        message = message
+                        message =
+                            message
                     )
                 }
 
 
                 /*
-                 * Loading indicator.
+                 * Loading indicator appears as a
+                 * temporary item after the messages.
                  */
-                if (state.isLoading) {
+                if (
+                    state.isLoading
+                ) {
 
                     item(
                         key = "loading"
@@ -381,9 +480,12 @@ private fun ChatScreenContent(
 
                         Box(
 
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        16.dp
+                                    ),
 
                             contentAlignment =
                                 Alignment.Center
@@ -396,60 +498,85 @@ private fun ChatScreenContent(
 
 
                 /*
-                 * Error card.
+                 * Empty prompt error.
+                 */
+                state.promptError?.let {
+
+                    item(
+                        key =
+                            "prompt_error"
+                    ) {
+
+                        Text(
+
+                            text =
+                                "Please enter a message before sending.",
+
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        8.dp
+                                    ),
+
+                            textAlign =
+                                TextAlign.Center,
+
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .error
+                        )
+                    }
+                }
+
+
+                /*
+                 * General error.
                  */
                 state.errorMessage?.let { error ->
 
                     item(
-                        key = "error"
+                        key =
+                            "error"
                     ) {
 
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
+
+                            modifier =
+                                Modifier.fillMaxWidth()
+
                         ) {
 
                             Column(
+
                                 modifier =
-                                    Modifier.padding(16.dp)
+                                    Modifier.padding(
+                                        14.dp
+                                    )
                             ) {
 
                                 Text(
-                                    text = "Error",
 
-                                    style =
+                                    text =
+                                        error,
+
+                                    color =
                                         MaterialTheme
-                                            .typography
-                                            .titleMedium
+                                            .colorScheme
+                                            .error
                                 )
 
-                                Spacer(
-                                    modifier =
-                                        Modifier.height(8.dp)
-                                )
-
-                                Text(
-                                    text = error,
-
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .bodyMedium
-                                )
-
-                                Spacer(
-                                    modifier =
-                                        Modifier.height(8.dp)
-                                )
 
                                 TextButton(
+
                                     onClick =
                                         onClearError
                                 ) {
 
                                     Text(
-                                        text = "Dismiss"
+                                        text =
+                                            "Dismiss"
                                     )
                                 }
                             }
@@ -463,35 +590,89 @@ private fun ChatScreenContent(
 
 
             /*
-             * Input row.
+             * Image attachment indicator.
+             */
+            state.selectedImageUri?.let {
+
+                Card(
+
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                top = 8.dp
+                            )
+                ) {
+
+                    Row(
+
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    10.dp
+                                ),
+
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
+                        Text(
+
+                            text =
+                                "🖼️ Image attached",
+
+                            modifier =
+                                Modifier.weight(1f)
+                        )
+
+
+                        TextButton(
+
+                            onClick =
+                                onClearImage
+                        ) {
+
+                            Text(
+                                text =
+                                    "Remove"
+                            )
+                        }
+                    }
+                }
+            }
+
+
+            /*
+             * INPUT BAR.
              */
             Row(
 
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        top = 10.dp,
-                        bottom = 8.dp
-                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            top = 10.dp,
+                            bottom = 10.dp
+                        ),
 
                 verticalAlignment =
                     Alignment.Bottom
             ) {
 
-
-                /*
-                 * Gemini text input.
-                 *
-                 * Light mode  -> black text
-                 * Dark mode   -> white text
-                 */
                 OutlinedTextField(
 
+                    /*
+                     * IMPORTANT:
+                     * This is now inputText.
+                     *
+                     * It is NOT the message history.
+                     */
                     value =
                         state.inputText,
 
                     onValueChange =
-                        onInputChange,
+                        onPromptChange,
 
                     modifier =
                         Modifier.weight(1f),
@@ -499,7 +680,8 @@ private fun ChatScreenContent(
                     label = {
 
                         Text(
-                            text = "Ask Gemini"
+                            text =
+                                "Ask Gemini"
                         )
                     },
 
@@ -507,94 +689,68 @@ private fun ChatScreenContent(
 
                         Text(
                             text =
-                                "Type or dictate a message..."
+                                "Type your message..."
                         )
                     },
 
                     maxLines = 4,
 
-                    colors =
-                        OutlinedTextFieldDefaults.colors(
-
-                            focusedTextColor =
-                                if (isDarkMode) {
-                                    Color.White
-                                } else {
-                                    Color.Black
-                                },
-
-                            unfocusedTextColor =
-                                if (isDarkMode) {
-                                    Color.White
-                                } else {
-                                    Color.Black
-                                },
-
-                            disabledTextColor =
-                                if (isDarkMode) {
-                                    Color.White
-                                } else {
-                                    Color.Black
-                                },
-
-                            cursorColor =
-                                if (isDarkMode) {
-                                    Color.White
-                                } else {
-                                    Color.Black
-                                },
-
-                            focusedLabelColor =
-                                MaterialTheme
-                                    .colorScheme
-                                    .primary,
-
-                            unfocusedLabelColor =
-                                MaterialTheme
-                                    .colorScheme
-                                    .onSurfaceVariant,
-
-                            focusedPlaceholderColor =
-                                if (isDarkMode) {
-                                    Color.LightGray
-                                } else {
-                                    Color.DarkGray
-                                },
-
-                            unfocusedPlaceholderColor =
-                                if (isDarkMode) {
-                                    Color.LightGray
-                                } else {
-                                    Color.DarkGray
-                                }
-                        )
+                    enabled =
+                        !state.isLoading
                 )
 
 
                 Spacer(
                     modifier =
-                        Modifier.width(4.dp)
+                        Modifier.width(2.dp)
                 )
 
 
                 /*
-                 * Voice dictation.
+                 * Image button.
                  */
                 IconButton(
+
                     onClick = {
-                        startVoiceInput()
-                    }
+
+                        imagePicker.launch(
+                            "image/*"
+                        )
+                    },
+
+                    enabled =
+                        !state.isLoading
                 ) {
 
                     Text(
-                        text = "🎤"
+                        text =
+                            "🖼️"
+                    )
+                }
+
+
+                /*
+                 * Microphone button.
+                 */
+                IconButton(
+
+                    onClick =
+                        ::startVoiceInput,
+
+                    enabled =
+                        !state.isLoading
+                ) {
+
+                    Text(
+                        text =
+                            "🎤"
                     )
                 }
 
 
                 Spacer(
                     modifier =
-                        Modifier.width(4.dp)
+                        Modifier.width(2.dp)
                 )
 
 
@@ -603,16 +759,17 @@ private fun ChatScreenContent(
                  */
                 Button(
 
-                    onClick = onSend,
+                    onClick =
+                        onSend,
 
                     enabled =
-                        state.inputText
-                            .isNotBlank() &&
+                        state.inputText.isNotBlank() &&
                                 !state.isLoading
                 ) {
 
                     Text(
-                        text = "Send"
+                        text =
+                            "Send"
                     )
                 }
             }
@@ -624,13 +781,22 @@ private fun ChatScreenContent(
             Text(
 
                 text =
-                    "Name: Neelansh Pandey, Roll No: N071, Assignment: 1",
+                    "Name: Neelansh Pandey • Roll No: N071 • Assignment 1",
 
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        bottom = 8.dp
-                    )
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            bottom = 8.dp
+                        ),
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodySmall,
+
+                textAlign =
+                    TextAlign.Center
             )
         }
     }
@@ -639,19 +805,24 @@ private fun ChatScreenContent(
     /*
      * Preferences dialog.
      */
-    if (state.showPreferences) {
+    if (
+        state.showPreferences
+    ) {
 
         AlertDialog(
 
             onDismissRequest =
                 onClosePreferences,
 
+
             title = {
 
                 Text(
-                    text = "Preferences"
+                    text =
+                        "Preferences"
                 )
             },
+
 
             text = {
 
@@ -665,92 +836,99 @@ private fun ChatScreenContent(
                         onValueChange =
                             onNameChange,
 
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
                         label = {
 
                             Text(
-                                text = "Your name"
+                                text =
+                                    "Your name"
                             )
                         },
 
-                        singleLine = true,
+                        singleLine = true
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                12.dp
+                            )
+                    )
+
+
+                    Row(
 
                         modifier =
                             Modifier.fillMaxWidth(),
 
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
 
-                                focusedTextColor =
-                                    if (isDarkMode) {
-                                        Color.White
-                                    } else {
-                                        Color.Black
-                                    },
+                        Text(
 
-                                unfocusedTextColor =
-                                    if (isDarkMode) {
-                                        Color.White
-                                    } else {
-                                        Color.Black
-                                    },
+                            text =
+                                "Dark mode",
 
-                                cursorColor =
-                                    if (isDarkMode) {
-                                        Color.White
+                            modifier =
+                                Modifier.weight(1f)
+                        )
+
+
+                        TextButton(
+
+                            onClick =
+                                onToggleDarkMode
+                        ) {
+
+                            Text(
+
+                                text =
+                                    if (
+                                        state.isDarkMode
+                                    ) {
+                                        "ON"
                                     } else {
-                                        Color.Black
+                                        "OFF"
                                     }
                             )
-                    )
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(12.dp)
-                    )
-
-                    Text(
-                        text =
-                            "Your name is saved locally using Preferences DataStore."
-                    )
+                        }
+                    }
                 }
             },
+
 
             confirmButton = {
 
                 TextButton(
+
                     onClick =
                         onSavePreferences
                 ) {
 
                     Text(
-                        text = "Save"
+                        text =
+                            "Save"
                     )
                 }
             },
 
+
             dismissButton = {
 
-                Row {
+                TextButton(
 
-                    TextButton(
-                        onClick =
-                            onClearChat
-                    ) {
+                    onClick =
+                        onClosePreferences
+                ) {
 
-                        Text(
-                            text = "Clear Chat"
-                        )
-                    }
-
-                    TextButton(
-                        onClick =
-                            onClosePreferences
-                    ) {
-
-                        Text(
-                            text = "Cancel"
-                        )
-                    }
+                    Text(
+                        text =
+                            "Cancel"
+                    )
                 }
             }
         )
@@ -759,7 +937,7 @@ private fun ChatScreenContent(
 
 
 /*
- * Individual chat message bubble.
+ * Individual chat bubble.
  */
 @Composable
 private fun ChatBubble(
@@ -772,7 +950,9 @@ private fun ChatBubble(
             Modifier.fillMaxWidth(),
 
         horizontalArrangement =
-            if (message.isUser) {
+            if (
+                message.isUser
+            ) {
 
                 Arrangement.End
 
@@ -795,7 +975,9 @@ private fun ChatBubble(
                     .large,
 
             color =
-                if (message.isUser) {
+                if (
+                    message.isUser
+                ) {
 
                     MaterialTheme
                         .colorScheme
@@ -810,14 +992,19 @@ private fun ChatBubble(
         ) {
 
             Column(
+
                 modifier =
-                    Modifier.padding(14.dp)
+                    Modifier.padding(
+                        14.dp
+                    )
             ) {
 
                 Text(
 
                     text =
-                        if (message.isUser) {
+                        if (
+                            message.isUser
+                        ) {
                             "You"
                         } else {
                             "Gemini"
@@ -829,10 +1016,37 @@ private fun ChatBubble(
                             .labelLarge
                 )
 
+
+                /*
+                 * Image indicator inside the
+                 * historical user message.
+                 */
+                if (
+                    message.imageUri != null
+                ) {
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                6.dp
+                            )
+                    )
+
+
+                    Text(
+                        text =
+                            "🖼️ Image attached"
+                    )
+                }
+
+
                 Spacer(
                     modifier =
-                        Modifier.height(4.dp)
+                        Modifier.height(
+                            4.dp
+                        )
                 )
+
 
                 Text(
 
